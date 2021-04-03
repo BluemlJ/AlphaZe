@@ -38,7 +38,7 @@ bool Node::is_sorted() const
 
 double Node::get_q_sum(ChildIdx childIdx, float virtualLoss) const
 {
-    return get_child_number_visits(childIdx) * double(get_q_value(childIdx)) + get_virtual_loss_counter(childIdx) * virtualLoss;
+    return get_child_number_visits(childIdx) * double(get_q_value(childIdx));
 }
 
 bool Node::is_transposition() const
@@ -469,7 +469,6 @@ void Node::apply_virtual_loss_to_child(ChildIdx childIdx, float virtualLoss)
     // make it look like if one has lost X games from this node forward where X is the virtual loss value
     // temporarily reduce the attraction of this node by applying a virtual loss /
     // the effect of virtual loss will be undone if the playout is over
-    d->qValues[childIdx] = (double(d->qValues[childIdx]) * d->childNumberVisits[childIdx] - virtualLoss) / (d->childNumberVisits[childIdx] + virtualLoss);
     // virtual increase the number of visits
     d->childNumberVisits[childIdx] += size_t(virtualLoss);
     d->visitSum += virtualLoss;
@@ -543,6 +542,7 @@ void Node::fully_expand_node()
 
 float Node::get_value() const
 {
+    assert(realVisitsSum != 0);
     return valueSum / realVisitsSum;
 }
 
@@ -594,7 +594,6 @@ void backup_collision(float virtualLoss, const Trajectory& trajectory) {
 void Node::revert_virtual_loss(ChildIdx childIdx, float virtualLoss)
 {
     lock();
-    d->qValues[childIdx] = (double(d->qValues[childIdx]) * d->childNumberVisits[childIdx] + virtualLoss) / (d->childNumberVisits[childIdx] - virtualLoss);
     d->childNumberVisits[childIdx] -= virtualLoss;
     d->visitSum -= virtualLoss;
     // decrement virtual loss counter

@@ -180,8 +180,9 @@ public:
         else {
             // revert virtual loss and update the Q-value
             assert(d->childNumberVisits[childIdx] != 0);
-            d->qValues[childIdx] = (double(d->qValues[childIdx]) * d->childNumberVisits[childIdx] + virtualLoss + value) / d->childNumberVisits[childIdx];
+            d->qValues[childIdx] = (double(d->qValues[childIdx]) * (d->childNumberVisits[childIdx]-1) + value) / d->childNumberVisits[childIdx];
             assert(!isnan(d->qValues[childIdx]));
+            assert(d->qValues[childIdx] < 1.1);
         }
 
         if (virtualLoss != 1) {
@@ -758,7 +759,7 @@ void backup_value(float value, float virtualLoss, const Trajectory& trajectory, 
         if (targetQValue != 0) {
             const uint_fast32_t transposVisits = it->node->get_real_visits(it->childIdx);
             if (transposVisits != 0) {
-                const double transposQValue = -it->node->get_q_sum(it->childIdx, virtualLoss) / transposVisits;
+                const double transposQValue = -it->node->get_q_value(it->childIdx);
                 value = get_transposition_q_value(transposVisits, transposQValue, targetQValue);
             }
         }
