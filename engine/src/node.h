@@ -172,23 +172,17 @@ public:
         valueSum += value;
         ++realVisitsSum;
 
-        if (d->childNumberVisits[childIdx] == virtualLoss) {
-            // set new Q-value based on return
-            // (the initialization of the Q-value was by Q_INIT which we don't want to recover.)
-            d->qValues[childIdx] = value;
-        }
-        else {
-            // revert virtual loss and update the Q-value
-            assert(d->childNumberVisits[childIdx] != 0);
-            d->qValues[childIdx] = (double(d->qValues[childIdx]) * (d->childNumberVisits[childIdx]-1) + value) / d->childNumberVisits[childIdx];
-            assert(!isnan(d->qValues[childIdx]));
-            assert(d->qValues[childIdx] < 1.1);
-        }
-
         if (virtualLoss != 1) {
             d->childNumberVisits[childIdx] -= size_t(virtualLoss) - 1;
             d->visitSum -= size_t(virtualLoss) - 1;
         }
+
+        // revert virtual loss and update the Q-value
+        assert(d->childNumberVisits[childIdx] != 0);
+        d->qValues[childIdx] = (double(d->qValues[childIdx]) * (d->childNumberVisits[childIdx]-1) + value) / d->childNumberVisits[childIdx];
+        assert(!isnan(d->qValues[childIdx]));
+        assert(d->qValues[childIdx] < 1.1);
+
         if (freeBackup) {
             ++d->freeVisits;
         }
@@ -336,7 +330,7 @@ public:
      * @param qValueWeight Decides if Q-values are taken into account
      * @param qVetoDelta Describes how much better the highest Q-Value has to be to replace the candidate move with the highest visit count
      */
-     void get_mcts_policy(DynamicVector<double>& mctsPolicy, size_t& bestMoveIdx, float qValueWeight, float qVetoDelta) const;
+    void get_mcts_policy(DynamicVector<double>& mctsPolicy, size_t& bestMoveIdx, float qValueWeight, float qVetoDelta) const;
 
     /**
      * @brief get_principal_variation Traverses the tree using the get_mcts_policy() function until a leaf or terminal node is found.
@@ -345,7 +339,7 @@ public:
      * @param qValueWeight Decides if Q-values are taken into account
      * @param qVetoDelta Describes how much better the highest Q-Value has to be to replace the candidate move with the highest visit count
      */
-     void get_principal_variation(vector<Action>& pv, float qValueWeight, float qVetoDelta) const;
+    void get_principal_variation(vector<Action>& pv, float qValueWeight, float qVetoDelta) const;
 
     /**
      * @brief mark_nodes_as_fully_expanded Sets the noVisitIdx to be the number of child nodes.
@@ -639,11 +633,11 @@ private:
      */
     void prune_losses_in_mcts_policy(DynamicVector<double>& mctsPolicy) const;
 
-//    /**
-//     * @brief mark_enhaned_moves Fills the isCheck and isCapture vector according to the legal moves
-//     * @param pos Current board positions
-//     */
-//    void mark_enhanced_moves(const Board* pos, const SearchSettings* searchSettings);
+    //    /**
+    //     * @brief mark_enhaned_moves Fills the isCheck and isCapture vector according to the legal moves
+    //     * @param pos Current board positions
+    //     */
+    //    void mark_enhanced_moves(const Board* pos, const SearchSettings* searchSettings);
 
     /**
      * @brief disable_move Disables a given move for futher visits by setting the corresponding Q-value to -INT_MAX
@@ -662,7 +656,7 @@ private:
  * @param qVetoDelta Describes how much better the highest Q-Value has to be to replace the candidate move with the highest visit count
  * @return Index for best move and child node
  */
- size_t get_best_action_index(const Node* curNode, bool fast, float qValueWeight, float qVetoDelto);
+size_t get_best_action_index(const Node* curNode, bool fast, float qValueWeight, float qVetoDelto);
 
 void add_item_to_delete(Node* node, unordered_map<Key, Node*>& hashTable, GCThread<Node>& gcThread);
 
@@ -745,6 +739,10 @@ float get_transposition_q_value(uint_fast32_t transposVisits, double transposQVa
 template <bool terminal>
 void backup_value(float value, float virtualLoss, const Trajectory& trajectory, bool solveForTerminal) {
     double targetQValue = 0;
+
+    // set Q-value directly for parent node
+    trajectory.back().node->set_q_value(trajectory.back().childIdx, -value);
+
     for (auto it = trajectory.rbegin(); it != trajectory.rend(); ++it) {
         if (targetQValue != 0) {
             const uint_fast32_t transposVisits = it->node->get_real_visits(it->childIdx);
