@@ -27,13 +27,14 @@
 #include "../util/blazeutil.h"
 #include <chrono>
 
-ThreadManager::ThreadManager(Node* rootNode, EvalInfo* evalInfo, vector<SearchThread*>& searchThreads, size_t movetimeMS, size_t updateIntervalMS, const SearchSettings* searchSettings, float overallNPS, float lastValueEval, bool inGame, bool canProlong):
+ThreadManager::ThreadManager(Node* rootNode, EvalInfo* evalInfo, vector<SearchThread*>& searchThreads, size_t movetimeMS, size_t updateIntervalMS, size_t moveOverhead, const SearchSettings* searchSettings, float overallNPS, float lastValueEval, bool inGame, bool canProlong):
     rootNode(rootNode),
     evalInfo(evalInfo),
     searchThreads(searchThreads),
     movetimeMS(movetimeMS),
     remainingMoveTimeMS(movetimeMS),
     updateIntervalMS(updateIntervalMS),
+    moveOverhead(moveOverhead),
     searchSettings(searchSettings),
     overallNPS(overallNPS),
     lastValueEval(lastValueEval),
@@ -47,7 +48,7 @@ ThreadManager::ThreadManager(Node* rootNode, EvalInfo* evalInfo, vector<SearchTh
 void ThreadManager::print_info()
 {
     evalInfo->end = chrono::steady_clock::now();
-    update_eval_info(*evalInfo, rootNode, get_tb_hits(searchThreads), get_max_depth(searchThreads), searchSettings->multiPV, searchSettings->qValueWeight);
+    update_eval_info(*evalInfo, rootNode, get_tb_hits(searchThreads), get_max_depth(searchThreads), searchSettings);
     info_msg(*evalInfo);
 }
 
@@ -159,6 +160,9 @@ bool ThreadManager::continue_search() {
     }
     const float newEval = rootNode->updated_value_eval();
     if (newEval < lastValueEval) {
+        if (remainingMoveTimeMS < updateIntervalMS + moveOverhead) {
+            return false;
+        }
         info_string("Increase search time");
         lastValueEval = newEval;
         ++checkedContinueSearch;

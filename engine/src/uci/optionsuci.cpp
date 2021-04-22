@@ -28,12 +28,21 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <cstring>
+#include "customlogger.h"
+#include "syzygy/tbprobe.h"
 
 using namespace std;
 
 void on_logger(const Option& o) {
-    start_logger(o);
+    CustomLogger::start(o, ifstream::app);
 }
+
+// method is based on 3rdparty/Stockfish/uci.cpp
+void on_tb_path(const Option& o) {
+    Tablebases::init(UCI::variant_from_name(Options["UCI_Variant"]), Options["SyzygyPath"]);
+}
+
 
 void OptionsUCI::init(OptionsMap &o)
 {
@@ -50,13 +59,14 @@ void OptionsUCI::init(OptionsMap &o)
     o["Centi_Dirichlet_Epsilon"]       << Option(0, 0, 99999);
 #endif
     o["Centi_Dirichlet_Alpha"]         << Option(20, 1, 99999);
+    o["Centi_Epsilon_Checks"]          << Option(1, 0, 100);
+    o["Centi_Epsilon_Greedy"]          << Option(5, 0, 100);
 //    o["Centi_U_Init"]                  << Option(100, 0, 100);         currently disabled
 //    o["Centi_U_Min"]                   << Option(100, 0, 100);         currently disabled
 //    o["U_Base"]                        << Option(1965, 0, 99999);      currently disabled
     o["Centi_Node_Temperature"]        << Option(170, 1, 99999);
-    o["Centi_Q_Value_Weight"]          << Option(0, 0, 99999);
-    o["Centi_Q_Thresh_Init"]           << Option(50, 0, 100);
-    o["Centi_Q_Thresh_Max"]            << Option(90, 0, 100);
+    o["Centi_Q_Value_Weight"]          << Option(100, 0, 99999);
+    o["Centi_Q_Veto_Delta"]            << Option(40, 0, 99999);
 #ifdef USE_RL
     o["Centi_Quantile_Clipping"]       << Option(0, 0, 100);
 #else
@@ -81,16 +91,18 @@ void OptionsUCI::init(OptionsMap &o)
     o["Context"]                       << Option("cpu");
 #endif
     o["CPuct_Base"]                    << Option(19652, 1, 99999);
-    o["Enhance_Checks"]                << Option(false);
 //    o["Enhance_Captures"]              << Option(false);         currently disabled
     o["First_Device_ID"]               << Option(0, 0, 99999);
     o["Fixed_Movetime"]                << Option(0, 0, 99999999);
     o["Last_Device_ID"]                << Option(0, 0, 99999);
     o["Log_File"]                      << Option("", on_logger);
-    o["Max_Search_Depth"]              << Option(99, 1, 99999);
     o["MCTS_Solver"]                   << Option(true);
 #ifdef MODE_CRAZYHOUSE
-    o["Model_Directory"]               << Option("model");
+    o["Model_Directory"]               << Option("model/crazyhouse");
+#elif defined MODE_LICHESS
+    o["Model_Directory"]               << Option(((string) "model" + "/" + availableVariants.front()).c_str());
+#elif defined MODE_CHESS
+    o["Model_Directory"]               << Option("model/chess");
 #else
     o["Model_Directory"]               << Option("model");
 #endif
@@ -103,9 +115,9 @@ void OptionsUCI::init(OptionsMap &o)
 #endif
 #ifdef TENSORRT
     o["Precision"]                     << Option("float16", {"float32", "float16", "int8"});
+#else
+    o["Precision"]                     << Option("int8", {"float32", "int8"});
 #endif
-    o["Q_Thresh_Base"]                 << Option(1965, 0, 99999);
-    o["Random_Playout"]                << Option(false);
 #ifdef USE_RL
     o["Reuse_Tree"]                    << Option(false);
 #else
@@ -116,22 +128,20 @@ void OptionsUCI::init(OptionsMap &o)
 #else
     o["Temperature_Moves"]             << Option(0, 0, 99999);
 #endif
-    o["Use_Advantage"]                 << Option(false);
-    o["Use_NPS_Time_Manager"]          << Option(false);
+    o["Use_NPS_Time_Manager"]          << Option(true);
 #ifdef TENSORRT
     o["Use_TensorRT"]                  << Option(true);
 #endif
-    o["Use_Transposition_Table"]       << Option(true);
 #ifdef SUPPORT960
     o["UCI_Chess960"]                  << Option(true);
 #endif
-    o["Search_Type"]                   << Option("mcts", {"mcts"});
+    o["Search_Type"]                   << Option("mcgs", {"mcgs", "mcts"});
 #ifdef USE_RL
     o["Simulations"]                   << Option(3200, 0, 99999999);
 #else
     o["Simulations"]                   << Option(0, 0, 99999999);
 #endif
-    o["SyzygyPath"]                    << Option("<empty>");
+    o["SyzygyPath"]                    << Option("<empty>", on_tb_path);
     o["Threads"]                       << Option(2, 1, 512);
 #ifdef MODE_CRAZYHOUSE
     o["UCI_Variant"]                   << Option("crazyhouse", {"crazyhouse", "crazyhouse"});
@@ -152,7 +162,11 @@ void OptionsUCI::init(OptionsMap &o)
     o["Centi_Resign_Threshold"]        << Option(-90, -100, 100);
     o["MaxInitPly"]                    << Option(30, 0, 99999);
     o["MeanInitPly"]                   << Option(15, 0, 99999);
+#ifdef LICHESS_MODE
+    o["Model_Directory_Contender"]     << Option(((string) "model_contender/" + availableVariants.front()).c_str());
+#else
     o["Model_Directory_Contender"]     << Option("model_contender/");
+#endif
     o["Selfplay_Number_Chunks"]        << Option(640, 1, 99999);
     o["Selfplay_Chunk_Size"]           << Option(128, 1, 99999);
     o["Milli_Policy_Clip_Thresh"]      << Option(0, 0, 100);
@@ -181,6 +195,11 @@ void OptionsUCI::setoption(istringstream &is)
         if (name == "uci_variant") {
             Variant variant = UCI::variant_from_name(value);
             cout << "info string variant " << (string)Options["UCI_Variant"] << " startpos " << StartFENs[variant] << endl;
+
+#ifdef MODE_LICHESS // Set model path for new variant; just in case set model_contender as well
+            Options["Model_Directory"] << ((string) "model" + "/" + string(Options["UCI_Variant"])).c_str();
+            Options["Model_Directory_Contender"] << Option(((string) "model_contender/" + string(Options["UCI_Variant"])).c_str());
+#endif
         }
     }
     else {

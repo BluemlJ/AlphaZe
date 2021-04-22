@@ -112,7 +112,7 @@ Node::Node(StateObj* state, bool inCheck, const SearchSettings* searchSettings):
 {
     // specify the number of direct child nodes of this node
     check_for_terminal(state, inCheck);
-#if MCTS_TB_SUPPORT
+#ifdef MCTS_TB_SUPPORT
     if (searchSettings->useTablebase && !isTerminal) {
         check_for_tablebase_wdl(state);
     }
@@ -295,7 +295,7 @@ void Node::update_solved_terminal(const Node* childNode, ChildIdx childIdx)
     }
 }
 
-void Node::mcts_policy_based_on_wins(DynamicVector<float> &mctsPolicy) const
+void Node::mcts_policy_based_on_wins(DynamicVector<double> &mctsPolicy) const
 {
     mctsPolicy = 0;
     ChildIdx childIdx = 0;
@@ -313,7 +313,7 @@ void Node::mcts_policy_based_on_wins(DynamicVector<float> &mctsPolicy) const
     }
 }
 
-void Node::prune_losses_in_mcts_policy(DynamicVector<float> &mctsPolicy) const
+void Node::prune_losses_in_mcts_policy(DynamicVector<double> &mctsPolicy) const
 {
     // check if PV line leads to a loss
     if (d->numberUnsolvedChildNodes != get_number_child_nodes() && d->nodeType != LOSS) {
@@ -325,20 +325,6 @@ void Node::prune_losses_in_mcts_policy(DynamicVector<float> &mctsPolicy) const
             }
         }
     }
-}
-
-void Node::mcts_policy_based_on_q_n(DynamicVector<float>& mctsPolicy, float qValueWeight) const
-{
-    DynamicVector<float> qValuePruned = d->qValues;
-    qValuePruned = (qValuePruned + 1) * 0.5f;
-    const DynamicVector<float> normalizedVisits = d->childNumberVisits / get_visits();
-    const float quantile = get_quantile(normalizedVisits, 0.25f);
-    for (size_t idx = 0; idx < get_number_child_nodes(); ++idx) {
-        if (d->childNumberVisits[idx] < quantile) {
-            qValuePruned[idx] = 0;
-        }
-    }
-    mctsPolicy = (1.0f - qValueWeight) * normalizedVisits + qValueWeight * qValuePruned;
 }
 
 bool Node::solve_for_terminal(ChildIdx childIdx)
@@ -463,14 +449,14 @@ bool Node::has_nn_results() const
     return hasNNResults;
 }
 
-void Node::apply_virtual_loss_to_child(ChildIdx childIdx, float virtualLoss)
+void Node::apply_virtual_loss_to_child(ChildIdx childIdx, uint_fast32_t virtualLoss)
 {
     // update the stats of the parent node
     // make it look like if one has lost X games from this node forward where X is the virtual loss value
     // temporarily reduce the attraction of this node by applying a virtual loss /
     // the effect of virtual loss will be undone if the playout is over
     // virtual increase the number of visits
-    d->childNumberVisits[childIdx] += size_t(virtualLoss);
+    d->childNumberVisits[childIdx] += virtualLoss;
     d->visitSum += virtualLoss;
     // increment virtual loss counter
     update_virtual_loss_counter<true>(childIdx);
@@ -621,7 +607,7 @@ bool Node::has_forced_win() const
     return get_checkmate_idx() != NO_CHECKMATE;
 }
 
-size_t Node::get_no_visit_idx() const
+uint16_t Node::get_no_visit_idx() const
 {
     return d->noVisitIdx;
 }
@@ -730,7 +716,7 @@ bool Node::is_tablebase() const
     return isTablebase;
 }
 
-uint8_t Node::get_node_type() const
+NodeType Node::get_node_type() const
 {
     return d->nodeType;
 }
@@ -931,7 +917,7 @@ Node *Node::get_child_node(ChildIdx childIdx)
     return d->childNodes[childIdx];
 }
 
-void Node::get_mcts_policy(DynamicVector<float>& mctsPolicy, size_t& bestMoveIdx, float qValueWeight) const
+void Node::get_mcts_policy(DynamicVector<double>& mctsPolicy, size_t& bestMoveIdx, float qValueWeight, float qVetoDelta) const
 {
     // fill only the winning moves in case of a known win
     if (d->nodeType == WIN) {
@@ -940,12 +926,21 @@ void Node::get_mcts_policy(DynamicVector<float>& mctsPolicy, size_t& bestMoveIdx
     }
     else if (qValueWeight > 0) {
         size_t secondArg;
-        float firstMax;
-        float secondMax;
+        double firstMaxValue;
+        double secondMaxValue;
         mctsPolicy = d->childNumberVisits;
         prune_losses_in_mcts_policy(mctsPolicy);
-        first_and_second_max(mctsPolicy, d->noVisitIdx, firstMax, secondMax, bestMoveIdx, secondArg);
-        if (bestMoveIdx != secondArg && d->qValues[secondArg] > d->qValues[bestMoveIdx]) {
+        size_t bestQIdx = argmax(d->qValues);
+        first_and_second_max(mctsPolicy, d->noVisitIdx, firstMaxValue, secondMaxValue, bestMoveIdx, secondArg);
+        if (qVetoDelta != 0 && d->qValues[bestQIdx] > d->qValues[bestMoveIdx] + qVetoDelta && d->childNumberVisits[bestQIdx] > 1) {
+            if (mctsPolicy[bestMoveIdx] > mctsPolicy[bestQIdx]) {
+                // swap values of highest qValues and most visits
+                const double qSavePolicy = mctsPolicy[bestQIdx];
+                mctsPolicy[bestQIdx] = mctsPolicy[bestMoveIdx];
+                mctsPolicy[bestMoveIdx] = qSavePolicy;
+            }
+        }
+        else if (bestMoveIdx != secondArg && d->qValues[secondArg] > d->qValues[bestMoveIdx]) {
             const float qDiff = d->qValues[secondArg] - d->qValues[bestMoveIdx];
             mctsPolicy[secondArg] += qDiff * qValueWeight * mctsPolicy[bestMoveIdx];
         }
@@ -958,17 +953,17 @@ void Node::get_mcts_policy(DynamicVector<float>& mctsPolicy, size_t& bestMoveIdx
     bestMoveIdx = argmax(mctsPolicy);
 }
 
-void Node::get_principal_variation(vector<Action>& pv, bool qValueWeight) const
+void Node::get_principal_variation(vector<Action>& pv, float qValueWeight, float qVetoDelta) const
 {
     const Node* curNode = this;
     while (curNode != nullptr && curNode->is_playout_node() && !curNode->is_terminal()) {
-        size_t childIdx = get_best_action_index(curNode, true, qValueWeight);
+        size_t childIdx = get_best_action_index(curNode, true, qValueWeight, qVetoDelta);
         pv.push_back(curNode->get_action(childIdx));
         curNode = curNode->d->childNodes[childIdx];
     }
 }
 
-size_t get_best_action_index(const Node *curNode, bool fast, bool qValueWeight)
+size_t get_best_action_index(const Node *curNode, bool fast, float qValueWeight, float qVetoDelta)
 {
     if (curNode->get_checkmate_idx() != NO_CHECKMATE) {
         // chose mating line
@@ -989,9 +984,9 @@ size_t get_best_action_index(const Node *curNode, bool fast, bool qValueWeight)
     if (fast) {
         return argmax(curNode->get_child_number_visits());
     }
-    DynamicVector<float> mctsPolicy(curNode->get_number_child_nodes());
+    DynamicVector<double> mctsPolicy(curNode->get_number_child_nodes());
     size_t bestMoveIdx;
-    curNode->get_mcts_policy(mctsPolicy, bestMoveIdx, qValueWeight);
+    curNode->get_mcts_policy(mctsPolicy, bestMoveIdx, qValueWeight, qVetoDelta);
     return bestMoveIdx;
 }
 
@@ -1101,11 +1096,6 @@ float get_visits(Node* node)
     return node->get_visits();
 }
 
-float get_current_q_thresh(const SearchSettings* searchSettings, int numberVisits)
-{
-    return searchSettings->qThreshMax - exp(-numberVisits / searchSettings->qThreshBase) * (searchSettings->qThreshMax - searchSettings->qThreshInit);
-}
-
 float get_current_cput(float visits, const SearchSettings* searchSettings)
 {
     return log((visits + searchSettings->cpuctBase + 1) / searchSettings->cpuctBase) + searchSettings->cpuctInit;
@@ -1121,7 +1111,7 @@ void Node::print_node_statistics(const StateObj* state, const vector<size_t>& cu
     for (size_t idx = 0; idx < get_number_child_nodes(); ++idx) {
         const size_t childIdx = customOrdering.size() == get_number_child_nodes() ? customOrdering[idx] : idx;
         size_t n = 0;
-        float q = Q_INIT;
+        double q = Q_INIT;
         if (childIdx < d->noVisitIdx) {
             n = d->childNumberVisits[childIdx];
             q = d->qValues[childIdx];
@@ -1137,7 +1127,7 @@ void Node::print_node_statistics(const StateObj* state, const vector<size_t>& cu
         }
         cout << setw(12) << n << " | "
              << setw(9) << policyProbSmall[childIdx] << " | "
-             << setw(10) << q << " | "
+             << setw(10) << max(q, -9.9999999) << " | "
              << setw(5) << value_to_centipawn(q) << " | ";
         if (childIdx < get_no_visit_idx() && d->childNodes[childIdx] != nullptr && d->childNodes[childIdx]->d != nullptr && d->childNodes[childIdx]->get_node_type() != UNSOLVED) {
             cout << setfill(' ') << setw(4) << node_type_to_string(flip_node_type(NodeType(d->childNodes[childIdx]->d->nodeType)))
