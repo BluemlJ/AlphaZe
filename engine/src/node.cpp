@@ -144,23 +144,18 @@ bool Node::at_least_one_drawn_child() const
 
 bool Node::only_won_child_nodes() const
 {
-    for (auto it = d->childNodes.begin(); it != d->childNodes.end(); ++it) {
-        const Node* childNode = it->get();
-        if (childNode->d->nodeType != WIN) {
-            return false;
-        }
-    }
-    return true;
+    return only_child_nodes_of_one_kind<WIN>();
 }
 
 bool Node::solved_loss(const Node* childNode) const
 {
 #ifndef MCTS_SINGLE_PLAYER
     if (d->numberUnsolvedChildNodes == 0 && childNode->d->nodeType == WIN) {
+        return only_won_child_nodes();
 #else
     if (d->numberUnsolvedChildNodes == 0 && childNode->d->nodeType == LOSS) {
+        return only_child_nodes_of_one_kind<LOSS>();
 #endif
-        return only_won_child_nodes();
     }
     return false;
 }
@@ -210,23 +205,18 @@ bool Node::solved_tb_loss(const Node* childNode) const
 {
 #ifndef MCTS_SINGLE_PLAYER
     if (d->numberUnsolvedChildNodes == 0 && childNode->d->nodeType == TB_WIN) {
+        return only_won_tb_child_nodes();
 #else
     if (d->numberUnsolvedChildNodes == 0 && childNode->d->nodeType == TB_LOSS) {
+        return only_child_nodes_of_one_kind<TB_LOSS>();
 #endif
-        return only_won_tb_child_nodes();
     }
     return false;
 }
 
 bool Node::only_won_tb_child_nodes() const
 {
-    for (auto it = d->childNodes.begin(); it != d->childNodes.end(); ++it) {
-        const Node* childNode = it->get();
-        if (childNode->d->nodeType != TB_WIN) {
-            return false;
-        }
-    }
-    return true;
+    return only_child_nodes_of_one_kind<TB_WIN>();
 }
 
 void Node::mark_as_tb_loss()
@@ -498,7 +488,7 @@ void Node::apply_virtual_loss_to_child(ChildIdx childIdx, uint_fast32_t virtualL
     d->childNumberVisits[childIdx] += virtualLoss;
     d->visitSum += virtualLoss;
     // increment virtual loss counter
-    update_virtual_loss_counter<true>(childIdx);
+    update_virtual_loss_counter<true>(childIdx, virtualLoss);
 }
 
 float Node::get_q_value(ChildIdx childIdx) const
@@ -638,7 +628,7 @@ void Node::revert_virtual_loss(ChildIdx childIdx, float virtualLoss)
     d->childNumberVisits[childIdx] -= virtualLoss;
     d->visitSum -= virtualLoss;
     // decrement virtual loss counter
-    update_virtual_loss_counter<false>(childIdx);
+    update_virtual_loss_counter<false>(childIdx, virtualLoss);
     unlock();
 }
 
@@ -1008,7 +998,7 @@ Node* Node::get_child_node(ChildIdx childIdx)
     return d->childNodes[childIdx].get();
 }
 
-void Node::get_mcts_policy(DynamicVector<double>& mctsPolicy, size_t& bestMoveIdx, float qValueWeight, float qVetoDelta) const
+void Node::get_mcts_policy(DynamicVector<double>& mctsPolicy, ChildIdx& bestMoveIdx, float qValueWeight, float qVetoDelta) const
 {
     // fill only the winning moves in case of a known win
     if (d->nodeType == WIN) {
@@ -1020,13 +1010,13 @@ void Node::get_mcts_policy(DynamicVector<double>& mctsPolicy, size_t& bestMoveId
         mcts_policy_based_on_losses(mctsPolicy);
     }
     else if (qValueWeight > 0) {
-        size_t secondArg;
+        ChildIdx secondArg;
         double firstMaxValue;
         double secondMaxValue;
         mctsPolicy = d->childNumberVisits;
         prune_losses_in_mcts_policy(mctsPolicy);
-        size_t bestQIdx = argmax(d->qValues);
-        first_and_second_max(mctsPolicy, d->noVisitIdx, firstMaxValue, secondMaxValue, bestMoveIdx, secondArg);
+        ChildIdx bestQIdx = argmax(d->qValues);
+        first_and_second_max(mctsPolicy, ChildIdx(d->noVisitIdx), firstMaxValue, secondMaxValue, bestMoveIdx, secondArg);
         if (qVetoDelta != 0 && bestQIdx != bestMoveIdx && d->qValues[bestQIdx] > d->qValues[bestMoveIdx] + qVetoDelta && d->childNumberVisits[bestQIdx] > 1) {
             if (mctsPolicy[bestMoveIdx] > mctsPolicy[bestQIdx]) {
                 // swap values of highest qValues and most visits
@@ -1083,7 +1073,7 @@ size_t get_best_action_index(const Node *curNode, bool fast, float qValueWeight,
         return argmax(curNode->get_child_number_visits());
     }
     DynamicVector<double> mctsPolicy(curNode->get_number_child_nodes());
-    size_t bestMoveIdx;
+    ChildIdx bestMoveIdx;
     curNode->get_mcts_policy(mctsPolicy, bestMoveIdx, qValueWeight, qVetoDelta);
     return bestMoveIdx;
 }
@@ -1105,6 +1095,36 @@ ChildIdx Node::select_child_node(const SearchSettings* searchSettings)
     // calculate the current u values
     // it's not worth to save the u values as a node attribute because u is updated every time n_sum changes
     return argmax(d->qValues + get_current_u_values(searchSettings));
+}
+
+NodeSplit Node::select_child_nodes(const SearchSettings* searchSettings, uint_fast16_t budget)
+{
+    NodeSplit nodeSplit;
+
+    if (!sorted) {
+        prepare_node_for_visits();
+    }
+    if (d->noVisitIdx == 1) {
+        nodeSplit.only_first(0, budget);
+        return nodeSplit;
+    }
+
+    if (has_forced_win()) {
+        nodeSplit.only_first(d->checkmateIdx, budget);
+        return nodeSplit;
+    }
+    DynamicVector<float> q_u_sum = d->qValues + get_current_u_values(searchSettings);
+    float firstMax;
+    float secondMax;
+    assert(q_u_sum.size() > 1);
+    first_and_second_max(q_u_sum, ChildIdx(d->noVisitIdx), firstMax, secondMax, nodeSplit.firstArg, nodeSplit.secondArg);
+
+    float firstShare = 0.5 + std::min(float(firstMax - secondMax), 0.5f);
+    nodeSplit.firstBudget = firstShare * budget + 0.5;  // rounding
+    nodeSplit.secondBudget = budget - nodeSplit.firstBudget;
+
+    assert(nodeSplit.secondArg != nodeSplit.firstArg);
+    return nodeSplit;
 }
 
 const char* node_type_to_string(enum NodeType nodeType)

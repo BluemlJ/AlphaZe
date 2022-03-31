@@ -7,7 +7,7 @@ option(USE_RL                    "Build with reinforcement learning support"  OF
 option(BACKEND_TENSORRT          "Build with TensorRT support"  ON)
 option(BACKEND_MXNET             "Build with MXNet backend (Blas/IntelMKL/CUDA/TensorRT) support"  OFF)
 option(BACKEND_TORCH             "Build with Torch backend (CPU/GPU) support" OFF)
-option(USE_960                   "Build with 960 variant support"  OFF)
+option(BACKEND_OPENVINO          "Build with OpenVino backend (CPU/GPU) support" OFF)
 option(BUILD_TESTS               "Build and run tests"  OFF)
 option(USE_DYNAMIC_NN_ARCH       "Build with dynamic neural network architektur support"  ON)
 # enable a single mode for different model input / outputs
@@ -18,13 +18,14 @@ option(MODE_OPEN_SPIEL           "Build with open_spiel environment support"  OF
 option(MODE_XIANGQI              "Build with xiangqi only support" OFF)
 option(MODE_STRATEGO             "Build Stratego with open_spiel environment support"  OFF)
 option(SEARCH_UCT                "Build with UCT instead of PUCT search"  OFF)
-
+option(MCTS_STORE_STATES         "Build search by storing the state objects in each node. Results in higher memory usage but faster CPU runtime."  OFF)
 
 add_definitions(-DIS_64BIT)
 
 if (MODE_CRAZYHOUSE)
     project(CrazyAra CXX)
     add_definitions(-DMODE_CRAZYHOUSE)
+    add_definitions(-DSF_DEPENDENCY)
     add_definitions(-DCRAZYHOUSE)
     add_definitions(-DVERSION=1)
 endif()
@@ -32,16 +33,19 @@ endif()
 if (MODE_CHESS)
     project(ClassicAra CXX)
     add_definitions(-DMODE_CHESS)
+    add_definitions(-DSF_DEPENDENCY)
     add_definitions(-DMCTS_TB_SUPPORT)
 #    add_definitions(-DVERSION=1)
 #    add_definitions(-DVERSION=2)
 #    add_definitions(-DSUB_VERSION=8)
     add_definitions(-DVERSION=3)
+    add_definitions(-DSUPPORT960)
 endif()
 
 if (MODE_LICHESS)
     project(MultiAra CXX)
     add_definitions(-DMODE_LICHESS)
+    add_definitions(-DSF_DEPENDENCY)
     add_definitions(-DCRAZYHOUSE)
     add_definitions(-DKOTH)
     add_definitions(-DTHREECHECK)
@@ -67,6 +71,7 @@ if (MODE_STRATEGO)
 endif()
 if (MODE_XIANGQI)
     project(XiangqiAra CXX)
+    add_definitions(-DSF_DEPENDENCY)
     add_definitions(-DNO_THREADS)
     add_definitions(-DXIANGQI)
     add_definitions(-DMODE_XIANGQI)
@@ -106,6 +111,10 @@ endif()
 
 if (SEARCH_UCT)
     add_definitions(-DSEARCH_UCT)
+endif()
+
+if (MCTS_STORE_STATES)
+    add_definitions(-DMCTS_STORE_STATES)
 endif()
 
 file(GLOB source_files
@@ -196,15 +205,15 @@ list(REMOVE_ITEM fsf_related_files ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/Fairy-St
 if (NOT MODE_XIANGQI)
     set(source_files
         ${source_files}
-        ${sf_related_files}
         ${uci_files}
         )
 endif ()
 
-if (NOT MODE_OPEN_SPIEL AND NOT MODE_XIANGQI AND NOT MODE_STRATEGO)
+if (MODE_CRAZYHOUSE OR MODE_CHESS OR MODE_LICHESS)
     set(source_files
         ${source_files}
         ${chess_related_files}
+        ${sf_related_files}
         )
 endif()
 
@@ -298,6 +307,8 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
             "3rdparty/open_spiel/open_spiel/games/chess/*.cc"
             "3rdparty/open_spiel/open_spiel/games/hex.h"
             "3rdparty/open_spiel/open_spiel/games/hex.cc"
+            "3rdparty/open_spiel/open_spiel/games/dark_hex.h"
+            "3rdparty/open_spiel/open_spiel/games/dark_hex.cc"
             )
     endif()
 
@@ -381,6 +392,12 @@ if (BACKEND_TORCH)
     add_definitions(-DTORCH)
 endif()
 
+if (BACKEND_OPENVINO)
+    add_definitions(-DOPENVINO)
+    find_package(ngraph REQUIRED OPTIONAL_COMPONENTS onnx_importer)
+    find_package(InferenceEngine REQUIRED)
+endif()
+
 if (USE_RL)
     message(STATUS "Enabled Reinforcement Learning functionality")
     if(DEFINED ENV{Z5_PATH})
@@ -416,14 +433,20 @@ if (BACKEND_TENSORRT)
     add_definitions(-DTENSORRT)
 endif()
 
-if (USE_960)
-    add_definitions(-DSUPPORT960)
-endif()
-
 add_executable(${PROJECT_NAME} ${source_files})
 
 if (BACKEND_TENSORRT)
     target_link_libraries(${PROJECT_NAME} nvonnxparser nvinfer cudart ${CUDART_LIB} ${CUBLAS_LIB} ${CUDNN_LIB})
+endif()
+
+if (BACKEND_OPENVINO)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE IMPLEMENT_INFERENCE_EXTENSION_API)
+    target_link_libraries(${PROJECT_NAME} PRIVATE IE::inference_engine
+                                                 ${${OPEN_VINO_PATH}/deployment_tools/inference_engine/shareNGRAPH_LIBRARIES})
+    if (ngraph_onnx_importer_FOUND)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${ONNX_IMPORTER_LIBRARIES})
+        target_compile_definitions(${PROJECT_NAME} PRIVATE NGRAPH_ONNX_IMPORT_ENABLED)
+    endif()
 endif()
 
 if (USE_RL)

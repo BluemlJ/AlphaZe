@@ -34,7 +34,7 @@
 #include "EntropyCalibrator.h"
 #include "stateobj.h"
 #include "../util/communication.h"
-#if !defined(MODE_POMMERMAN) && !defined(MODE_XIANGQI) && !defined(MODE_STRATEGO)
+#ifdef SF_DEPENDENCY
 #include "environments/chess_related/chessbatchstream.h"
 #endif
 
@@ -125,7 +125,6 @@ bool TensorrtAPI::retrieve_indices_by_name(bool verbose)
 void TensorrtAPI::init_nn_design()
 {
     nnDesign.hasAuxiliaryOutputs = engine->getNbBindings() > 3;
-
     if (!retrieve_indices_by_name(generatedTrtFromONNX)) {
         info_string_important("Fallback to default indices.");
         idxInput = nnDesign.inputIdx;
@@ -155,7 +154,7 @@ void TensorrtAPI::bind_executor()
     memorySizes[idxInput] = batchSize * StateConstants::NB_VALUES_TOTAL() * sizeof(float);
 #endif
     memorySizes[idxValueOutput] = batchSize * sizeof(float);
-    memorySizes[idxPolicyOutput] = get_policy_output_length() * sizeof(float);
+    memorySizes[idxPolicyOutput] = batchSize * get_nb_policy_values() * sizeof(float);
 #ifdef DYNAMIC_NN_ARCH
     if (nnDesign.hasAuxiliaryOutputs) {
         memorySizes[idxAuxiliaryOutput] = batchSize * get_nb_auxiliary_outputs() * sizeof (float);
@@ -202,31 +201,38 @@ ICudaEngine* TensorrtAPI::create_cuda_engine_from_onnx()
     info_string("Building TensorRT engine...");
     info_string("This may take a few minutes...");
     // create an engine builder
-    IBuilder* builder = createInferBuilder(gLogger.getTRTLogger());
+    SampleUniquePtr<IBuilder> builder = SampleUniquePtr<IBuilder>(createInferBuilder(gLogger.getTRTLogger()));
     builder->setMaxBatchSize(int(batchSize));
 
     // create an ONNX network object
-    const auto explicitBatch = 1U << static_cast<uint32_t>(NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+    const uint32_t explicitBatch = 1U << static_cast<uint32_t>(NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
     auto network = SampleUniquePtr<nvinfer1::INetworkDefinition>(builder->createNetworkV2(explicitBatch));
-
-    SampleUniquePtr<nvinfer1::IBuilderConfig> config = SampleUniquePtr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
-    unique_ptr<IInt8Calibrator> calibrator;
-    unique_ptr<IBatchStream> calibrationStream;
-    set_config_settings(config, network, 1_GiB, calibrator, calibrationStream);
 
     // conversion of ONNX model to TensorRT
     // parse the ONNX model file along with logger object for reporting info
-    auto parser = nvonnxparser::createParser(*network, gLogger.getTRTLogger());
+    SampleUniquePtr<nvonnxparser::IParser> parser = SampleUniquePtr<nvonnxparser::IParser>(nvonnxparser::createParser(*network, gLogger.getTRTLogger()));
     if (!parser->parseFromFile(modelFilePath.c_str(), static_cast<int>(gLogger.getReportableSeverity())))
     {
         gLogger.log(nvinfer1::ILogger::Severity::kERROR, "failed to parse onnx file");
+        for (int32_t idx = 0; idx < parser->getNbErrors(); ++idx) {
+            std::cout << parser->getError(idx)->desc() << std::endl;
+        }
         exit(EXIT_FAILURE);
         return nullptr;
     }
     configure_network(network);
 
+    SampleUniquePtr<nvinfer1::IBuilderConfig> config = SampleUniquePtr<nvinfer1::IBuilderConfig>(builder->createBuilderConfig());
+    unique_ptr<IInt8Calibrator> calibrator;
+    unique_ptr<IBatchStream> calibrationStream;
+    set_config_settings(config, 1_GiB, calibrator, calibrationStream);
+
     // build an engine from the TensorRT network with a given configuration struct
-    return builder->buildEngineWithConfig(*network, *config);
+    SampleUniquePtr<IHostMemory> serializedModel{builder->buildSerializedNetwork(*network, *config)};
+    SampleUniquePtr<IRuntime> runtime{createInferRuntime(sample::gLogger.getTRTLogger())};
+
+    // build an engine from the serialized model
+    return runtime->deserializeCudaEngine(serializedModel->data(), serializedModel->size());;
 }
 
 ICudaEngine* TensorrtAPI::get_cuda_engine() {
@@ -238,7 +244,7 @@ ICudaEngine* TensorrtAPI::get_cuda_engine() {
     if (buffer) {
         info_string("deserialize engine:", trtFilePath);
         unique_ptr<IRuntime, samplesCommon::InferDeleter> runtime{createInferRuntime(gLogger)};
-        engine = runtime->deserializeCudaEngine(buffer, bufferSize, nullptr);
+        engine = runtime->deserializeCudaEngine(buffer, bufferSize);
     }
 
     if (!engine) {
@@ -253,19 +259,16 @@ ICudaEngine* TensorrtAPI::get_cuda_engine() {
             info_string("serialize engine:", trtFilePath);
             // serialized engines are not portable across platforms or TensorRT versions
             // engines are specific to the exact GPU model they were built on
-            IHostMemory *serializedModel = engine->serialize();
             unique_ptr<IHostMemory, samplesCommon::InferDeleter> enginePlan{engine->serialize()};
             // export engine for future uses
             // write engine to file
             write_buffer(enginePlan->data(), enginePlan->size(), trtFilePath);
-            serializedModel->destroy();
         }
     }
     return engine;
 }
 
 void TensorrtAPI::set_config_settings(SampleUniquePtr<nvinfer1::IBuilderConfig>& config,
-                                      SampleUniquePtr<nvinfer1::INetworkDefinition>& network,
                                       size_t maxWorkspace, unique_ptr<IInt8Calibrator>& calibrator,
                                       unique_ptr<IBatchStream>& calibrationStream)
 {
@@ -289,7 +292,7 @@ void TensorrtAPI::set_config_settings(SampleUniquePtr<nvinfer1::IBuilderConfig>&
         calibrator.reset(new Int8EntropyCalibrator2<ChessBatchStream>(*(dynamic_cast<ChessBatchStream*>(calibrationStream.get())), 0, "model", "data"));
 #endif
         config->setInt8Calibrator(calibrator.get());
-        samplesCommon::setAllTensorScales(network.get(), 127.0f, 127.0f);
+        // samplesCommon::setAllTensorScales(network.get(), 127.0f, 127.0f); -> unavailable for TensorRT >= 8.2.0.6
         break;
     }
 }
@@ -305,7 +308,7 @@ void TensorrtAPI::configure_network(SampleUniquePtr<nvinfer1::INetworkDefinition
         }
     }
     if (policyOutputIdx == -1) {
-        info_string("Did not find policy output with name '", nnDesign.policyOutputName, "'");
+        info_string("Did not find policy output with name '" + nnDesign.policyOutputName + "'");
         info_string("Setting policyOutputIdx to:", nnDesign.policyOutputIdx);
         policyOutputIdx = nnDesign.policyOutputIdx;
     }

@@ -46,8 +46,7 @@ vector<string> get_directory_files(const string& dir) {
     shared_ptr<DIR> directory_ptr(opendir(dir.c_str()), [](DIR* dir){ dir && closedir(dir); });
     struct dirent *dirent_ptr;
     if (!directory_ptr) {
-        info_string("Error opening :", strerror(errno));
-        info_string(dir);
+        info_string_important("Error opening :", dir, "(" + string(strerror(errno)) + ")");
         return files;
     }
 
@@ -146,7 +145,7 @@ protected:
     nn_api::NeuralNetDesign nnDesign;
     uint_fast32_t nbNNInputValues;
     uint_fast32_t nbNNAuxiliaryOutputs;
-    uint_fast32_t policyOutputLength;
+    uint_fast32_t nbPolicyValues;
 
     Version version;
 private:
@@ -216,11 +215,19 @@ public:
     void validate_neural_network();
 
     /**
+     * @brief get_policy_output_length Returns the number of policy values for a single batch
+     * @return Vector length
+     */
+    inline uint_fast32_t get_nb_policy_values() const {
+        return nbPolicyValues;
+    }
+
+    /**
      * @brief get_policy_output_length Returns vector length for the policy output as returned by the neural network respecting the batch size
      * @return Vector length
      */
     inline uint_fast32_t get_policy_output_length() const {
-        return policyOutputLength;
+        return get_nb_policy_values() * batchSize;
     }
 
     /**
@@ -281,5 +288,15 @@ protected:
  * @return string with "/" as suffix
  */
 string parse_directory(const string& directory);
+
+/**
+ * @brief apply_softmax Applies the softmax activation on a given data array.
+ * This method is based on an implementation by "SlayStudy":
+ * https://slaystudy.com/implementation-of-softmax-activation-function-in-c-c/
+ * @param input Data array
+ * @param size Length on how many values to apply softmax
+ */
+void apply_softmax(float* input, size_t size);
+
 
 #endif // NEURALNETAPI_H

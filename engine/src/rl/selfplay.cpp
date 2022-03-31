@@ -32,7 +32,6 @@
 #include <fstream>
 #include "uci.h"
 #include "state.h"
-#include "uci/variants.h"
 #include "util/blazeutil.h"
 #include "util/randomgen.h"
 
@@ -225,6 +224,8 @@ Result SelfPlay::generate_arena_game(MCTSAgent* whitePlayer, MCTSAgent* blackPla
     gamePGN.white = whitePlayer->get_name();
     gamePGN.black = blackPlayer->get_name();
     unique_ptr<StateObj> state= make_unique<StateObj>();
+    //unique_ptr<StateObj> state = init_starting_state_from_raw_policy(*rawAgent, 0, gamePGN, variant, is960, rlSettings->rawPolicyProbabilityTemperature);
+    
     if (fen != "") {
         // set starting fen
         state->set(fen, is960, variant);
