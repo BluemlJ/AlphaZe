@@ -27,16 +27,14 @@
 #include "util/communication.h"
 #include <functional>
 
-OpenSpielState::OpenSpielState():
-    currentVariant(open_spiel::gametype::SupportedOpenSpielVariants::HEX),
-    spielGame(open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant))),
-    spielState(spielGame->NewInitialState())
+OpenSpielState::OpenSpielState() : currentVariant(open_spiel::gametype::SupportedOpenSpielVariants::HEX),
+                                   spielGame(open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant))),
+                                   spielState(spielGame->NewInitialState())
 {
 }
 
-OpenSpielState::OpenSpielState(const OpenSpielState &openSpielState):
-    spielGame(openSpielState.spielGame->shared_from_this()),
-    spielState(openSpielState.spielState->Clone())
+OpenSpielState::OpenSpielState(const OpenSpielState &openSpielState) : spielGame(openSpielState.spielGame->shared_from_this()),
+                                                                       spielState(openSpielState.spielState->Clone())
 {
 }
 
@@ -47,7 +45,8 @@ std::vector<Action> OpenSpielState::legal_actions() const
 
 inline void OpenSpielState::check_variant(int variant)
 {
-    if (variant != currentVariant) {
+    if (variant != currentVariant)
+    {
         currentVariant = open_spiel::gametype::SupportedOpenSpielVariants(variant);
         spielGame = open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant));
     }
@@ -61,16 +60,16 @@ void OpenSpielState::set(const std::string &fenStr, bool isChess960, int variant
 
 void OpenSpielState::get_state_planes(bool normalize, float *inputPlanes, Version version) const
 {
-    std::fill(inputPlanes, inputPlanes+StateConstantsOpenSpiel::NB_VALUES_TOTAL(), 0.0f);
-    //info_string_important(StateConstantsOpenSpiel::NB_VALUES_TOTAL());
+    std::fill(inputPlanes, inputPlanes + StateConstantsOpenSpiel::NB_VALUES_TOTAL(), 0.0f);
+    // info_string_important(StateConstantsOpenSpiel::NB_VALUES_TOTAL());
     std::vector<float> v(spielGame->ObservationTensorSize());
     spielState->ObservationTensor(spielState->CurrentPlayer(), absl::MakeSpan(v));
-    std::copy( v.begin(), v.end(), inputPlanes);
+    std::copy(v.begin(), v.end(), inputPlanes);
 }
 
 unsigned int OpenSpielState::steps_from_null() const
 {
-    return spielState->MoveNumber();  // note: MoveNumber != PlyCount
+    return spielState->MoveNumber(); // note: MoveNumber != PlyCount
 }
 
 bool OpenSpielState::is_chess960() const
@@ -85,13 +84,16 @@ std::string OpenSpielState::fen() const
 
 void OpenSpielState::do_action(Action action)
 {
-    auto player = spielState->CurrentPlayer();
-    if(player == 1){
-        int X = action / 11; //currently easier to set board size fix; change it later
+    /*
+        auto player = spielState->CurrentPlayer();
+    if (player == 1)
+    {
+        int X = action / 11; // currently easier to set board size fix; change it later
         int Y = action % 11;
-        spielState->ApplyAction(Y*11+X);
+        spielState->ApplyAction(Y * 11 + X);
         return;
     }
+    */
     spielState->ApplyAction(action);
 }
 
@@ -143,15 +145,19 @@ std::string OpenSpielState::action_to_san(Action action, const std::vector<Actio
 
 TerminalType OpenSpielState::is_terminal(size_t numberLegalMoves, float &customTerminalValue) const
 {
-    if (spielState->IsTerminal()) {
+    if (spielState->IsTerminal())
+    {
         const double currentReturn = spielState->Returns()[spielState->MoveNumber() % 2];
-        if (currentReturn == spielGame->MaxUtility()) {
+        if (currentReturn == spielGame->MaxUtility())
+        {
             return TERMINAL_WIN;
         }
-        if (currentReturn == spielGame->MinUtility() + spielGame->MaxUtility()) {
+        if (currentReturn == spielGame->MinUtility() + spielGame->MaxUtility())
+        {
             return TERMINAL_DRAW;
         }
-        if (currentReturn == spielGame->MinUtility()) {
+        if (currentReturn == spielGame->MinUtility())
+        {
             return TERMINAL_LOSS;
         }
         customTerminalValue = currentReturn;
@@ -176,17 +182,18 @@ Tablebase::WDLScore OpenSpielState::check_for_tablebase_wdl(Tablebase::ProbeStat
     return Tablebase::WDLScoreNone;
 }
 
-void OpenSpielState::set_auxiliary_outputs(const float* auxiliaryOutputs)
+void OpenSpielState::set_auxiliary_outputs(const float *auxiliaryOutputs)
 {
     // do nothing
 }
 
-OpenSpielState* OpenSpielState::clone() const
+OpenSpielState *OpenSpielState::clone() const
 {
     return new OpenSpielState(*this);
 }
 
-void OpenSpielState::init(int variant, bool isChess960) {
+void OpenSpielState::init(int variant, bool isChess960)
+{
     check_variant(variant);
     spielState = spielGame->NewInitialState();
 }

@@ -29,69 +29,88 @@
 #define OPENSPIELSTATE_H
 
 #include "state.h"
-#include "open_spiel/spiel.h"
-#include "open_spiel/games/chess.h"
+#include "rbc_open_spiel/spiel.h"
+#include "rbc_open_spiel/games/chess.h"
 #include "open_spiel/games/hex.h"
 #include "open_spiel/games/dark_hex.h"
+#include "rbc_open_spiel/games/rbc.h"
 
-namespace open_spiel {
-namespace gametype {
-enum SupportedOpenSpielVariants : uint8_t {
-    HEX = 0,  // 11x11 board
-    DARKHEX = 1,
-    CHESS = 2,
-    YORKTOWN = 3,
-};
-}
+namespace open_spiel
+{
+    namespace gametype
+    {
+        enum SupportedOpenSpielVariants : uint8_t
+        {
+            HEX = 0, // 11x11 board
+            DARKHEX = 1,
+            CHESS = 2,
+            RBC = 3,
+        };
+    }
 }
 
 class StateConstantsOpenSpiel : public StateConstantsInterface<StateConstantsOpenSpiel>
 {
 public:
-    static uint BOARD_WIDTH() {
+    static uint BOARD_WIDTH()
+    {
         return open_spiel::hex::kDefaultBoardSize;
     }
-    static uint BOARD_HEIGHT() {
-        return  open_spiel::hex::kDefaultBoardSize;
+    static uint BOARD_HEIGHT()
+    {
+        return open_spiel::hex::kDefaultBoardSize;
     }
-    static uint NB_CHANNELS_TOTAL() {
-        return 9;  // TODO
+    static uint NB_CHANNELS_TOTAL()
+    {
+        return 9; // TODO
     }
-    static uint NB_LABELS() {
+    static uint NB_LABELS()
+    {
         return 121; // NB_CHANNELS_TOTAL()*BOARD_HEIGHT()*BOARD_WIDTH();  // TODO
     }
-    static uint NB_LABELS_POLICY_MAP() {
-        return BOARD_HEIGHT()*BOARD_WIDTH();  // TODO
+    static uint NB_LABELS_POLICY_MAP()
+    {
+        return BOARD_HEIGHT() * BOARD_WIDTH(); // TODO
     }
-    static uint NB_AUXILIARY_OUTPUTS() {
+    static uint NB_AUXILIARY_OUTPUTS()
+    {
         return 0U;
     }
-    static int NB_PLAYERS() {
-        return  open_spiel::hex::kNumPlayers;
+    static int NB_PLAYERS()
+    {
+        return open_spiel::hex::kNumPlayers;
     }
-    static std::string action_to_uci(Action action, bool is960) {
+    static std::string action_to_uci(Action action, bool is960)
+    {
         // TODO use actual uci for this
         return std::to_string(action);
     }
-    template<PolicyType p = normal, MirrorType m = notMirrored>
-    static MoveIdx action_to_index(Action action) {
-        return action;  // TODO
+    template <PolicyType p = normal, MirrorType m = notMirrored>
+    static MoveIdx action_to_index(Action action)
+    {
+        return action; // TODO
     }
-    static void init(bool isPolicyMap) {
+    static void init(bool isPolicyMap)
+    {
         return; // pass
     }
 
-    static std::vector<std::string> available_variants() {
+    static std::vector<std::string> available_variants()
+    {
         return {"hex",
                 "chess",
-                "yorktown"};
+                "rbc"};
     }
 
-    static std::string start_fen(int variant) {
-        switch (variant) {
+    static std::string start_fen(int variant)
+    {
+        switch (variant)
+        {
         case open_spiel::gametype::SupportedOpenSpielVariants::HEX:
             return ". . . . . . . . . . .  . . . . . . . . . . .   . . . . . . . . . . .    . . . . . . . . . . .     . . . . . . . . . . .      . . . . . . . . . . .       . . . . . . . . . . .        . . . . . . . . . . .         . . . . . . . . . . .          . . . . . . . . . . .           . . . . . . . . . . .";
         case open_spiel::gametype::SupportedOpenSpielVariants::CHESS:
+            return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        case open_spiel::gametype::SupportedOpenSpielVariants::RBC:
             return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         case open_spiel::gametype::SupportedOpenSpielVariants::YORKTOWN:
             return "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1";
@@ -117,7 +136,7 @@ private:
 
 public:
     OpenSpielState();
-    OpenSpielState(const OpenSpielState& openSpielState);
+    OpenSpielState(const OpenSpielState &openSpielState);
 
     // State interface
 public:
@@ -140,7 +159,7 @@ public:
     bool gives_check(Action action) const;
     void print(std::ostream &os) const;
     Tablebase::WDLScore check_for_tablebase_wdl(Tablebase::ProbeState &result);
-    void set_auxiliary_outputs(const float* auxiliaryOutputs);
+    void set_auxiliary_outputs(const float *auxiliaryOutputs);
     OpenSpielState *clone() const;
     void init(int variant, bool isChess960);
 };
