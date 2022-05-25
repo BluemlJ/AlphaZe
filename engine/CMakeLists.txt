@@ -305,6 +305,7 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
 
     if(MODE_OPEN_SPIEL)
         file(GLOB open_spiel_related_files
+            "3rdparty/open_spiel/open_spiel/utils/*.h"
             "src/environments/open_spiel/*.h"
             "src/environments/open_spiel/*.cpp"
             "3rdparty/open_spiel/open_spiel/games/chess.h"
