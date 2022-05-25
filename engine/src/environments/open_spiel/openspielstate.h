@@ -29,11 +29,11 @@
 #define OPENSPIELSTATE_H
 
 #include "state.h"
-#include "open_spiel_rbc/spiel.h"
-#include "open_spiel_rbc/games/chess.h"
+#include "open_spiel/spiel.h"
+#include "open_spiel/games/chess.h"
 #include "open_spiel/games/hex.h"
 #include "open_spiel/games/dark_hex.h"
-#include "open_spiel_rbc/games/rbc.h"
+#include "open_spiel/games/rbc.h"
 
 namespace open_spiel
 {
