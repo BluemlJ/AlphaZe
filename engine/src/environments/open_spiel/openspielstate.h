@@ -97,9 +97,12 @@ public:
 
     static std::vector<std::string> available_variants()
     {
-        return {"hex",
-                "chess",
-                "rbc"};
+        return {
+            "hex",
+            "darkhex",
+            "chess",
+            "rbc",
+        };
     }
 
     static std::string start_fen(int variant)

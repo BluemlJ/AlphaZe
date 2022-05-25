@@ -62,7 +62,7 @@ const static vector<string> availableVariants = {
 #ifdef MODE_OPEN_SPIEL
     "rbc"
     "hex",
-    "darkhex",
+    "darkhex"
 #endif
 };
 
