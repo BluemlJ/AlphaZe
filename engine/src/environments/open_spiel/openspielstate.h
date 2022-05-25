@@ -78,7 +78,7 @@ public:
     }
     static int NB_PLAYERS()
     {
-        return open_spiel::chess::kNumPlayers;
+        return open_spiel::hex::kNumPlayers;
     }
     static std::string action_to_uci(Action action, bool is960)
     {

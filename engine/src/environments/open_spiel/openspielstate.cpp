@@ -31,6 +31,7 @@ OpenSpielState::OpenSpielState() : currentVariant(open_spiel::gametype::Supporte
                                    spielGame(open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant))),
                                    spielState(spielGame->NewInitialState())
 {
+    std::cout << currentVariant << std::cend;
 }
 
 OpenSpielState::OpenSpielState(const OpenSpielState &openSpielState) : spielGame(openSpielState.spielGame->shared_from_this()),
