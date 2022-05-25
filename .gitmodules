@@ -10,3 +10,6 @@
 [submodule "engine/3rdparty/open_spiel"]
 	path = engine/3rdparty/open_spiel
 	url = https://github.com/BluemlJ/open_spiel.git
+[submodule "engine/3rdparty/open_spiel_rbc"]
+	path = engine/3rdparty/open_spiel_rbc
+	url = git@github.com:BluemlJ/open_spiel_rbc.git
