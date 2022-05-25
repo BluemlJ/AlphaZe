@@ -107,6 +107,7 @@ public:
 
     static std::string start_fen(int variant)
     {
+        variant = 3;
         switch (variant)
         {
         case open_spiel::gametype::SupportedOpenSpielVariants::HEX:
