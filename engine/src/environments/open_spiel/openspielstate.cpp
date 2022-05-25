@@ -55,7 +55,7 @@ inline void OpenSpielState::check_variant(int variant)
 
 void OpenSpielState::set(const std::string &fenStr, bool isChess960, int variant)
 {
-    check_variant(variant);
+    // check_variant(variant);
     std::cout << currentVariant << StateConstantsOpenSpiel::variant_to_string(currentVariant) << std::endl;
     spielState = spielGame->NewInitialState(fenStr);
 }
