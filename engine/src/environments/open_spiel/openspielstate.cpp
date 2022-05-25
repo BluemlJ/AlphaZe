@@ -27,7 +27,7 @@
 #include "util/communication.h"
 #include <functional>
 
-OpenSpielState::OpenSpielState() : currentVariant(open_spiel::gametype::SupportedOpenSpielVariants::HEX),
+OpenSpielState::OpenSpielState() : currentVariant(open_spiel::gametype::SupportedOpenSpielVariants::RBC),
                                    spielGame(open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant))),
                                    spielState(spielGame->NewInitialState())
 {

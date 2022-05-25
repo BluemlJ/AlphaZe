@@ -60,9 +60,9 @@ const static vector<string> availableVariants = {
     "stratego",
 #endif
 #ifdef MODE_OPEN_SPIEL
+    "rbc"
     "hex",
     "darkhex",
-    "rbc",
 #endif
 };
 

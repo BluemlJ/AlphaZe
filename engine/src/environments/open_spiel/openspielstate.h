@@ -54,11 +54,11 @@ class StateConstantsOpenSpiel : public StateConstantsInterface<StateConstantsOpe
 public:
     static uint BOARD_WIDTH()
     {
-        return open_spiel::hex::kDefaultBoardSize;
+        return open_spiel::chess::kDefaultBoardSize;
     }
     static uint BOARD_HEIGHT()
     {
-        return open_spiel::hex::kDefaultBoardSize;
+        return open_spiel::chess::kDefaultBoardSize;
     }
     static uint NB_CHANNELS_TOTAL()
     {
@@ -78,7 +78,7 @@ public:
     }
     static int NB_PLAYERS()
     {
-        return open_spiel::hex::kNumPlayers;
+        return open_spiel::chess::kNumPlayers;
     }
     static std::string action_to_uci(Action action, bool is960)
     {
@@ -112,8 +112,8 @@ public:
             return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         case open_spiel::gametype::SupportedOpenSpielVariants::RBC:
             return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        case open_spiel::gametype::SupportedOpenSpielVariants::YORKTOWN:
-            return "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1";
+        // case open_spiel::gametype::SupportedOpenSpielVariants::YORKTOWN:
+        //     return "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1";
         default:
             info_string("Unknown variant:", variant, "given");
             return "";
