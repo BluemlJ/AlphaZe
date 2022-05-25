@@ -296,6 +296,7 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/container/*.h"
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/container/internal/*.cc"
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/container/internal/*.h"
+        "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/*"
         )
 
     if(MODE_OPEN_SPIEL)
