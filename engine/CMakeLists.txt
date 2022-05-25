@@ -253,7 +253,6 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
       spiel_utils.h
       tensor_game.cc
       tensor_game.h
-      utils/usage_logging.h
     )
 
     file(GLOB open_spiel_abseil_files
@@ -345,6 +344,7 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
 
     set (BUILD_TESTING OFF)
     include_directories("3rdparty/open_spiel")
+    include_directories("3rdparty/open_spiel/utils")
     include_directories("3rdparty/open_spiel/open_spiel/abseil-cpp")
     message(STATUS "MODE_OPEN_SPIEL")
     set(source_files
