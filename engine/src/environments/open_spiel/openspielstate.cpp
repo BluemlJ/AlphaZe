@@ -31,7 +31,7 @@ OpenSpielState::OpenSpielState() : currentVariant(open_spiel::gametype::Supporte
                                    spielGame(open_spiel::LoadGame(StateConstantsOpenSpiel::variant_to_string(currentVariant))),
                                    spielState(spielGame->NewInitialState())
 {
-    std::cout << currentVariant << std::endl;
+    std::cout << currentVariant << StateConstantsOpenSpiel::variant_to_string(currentVariant) << std::endl;
 }
 
 OpenSpielState::OpenSpielState(const OpenSpielState &openSpielState) : spielGame(openSpielState.spielGame->shared_from_this()),
@@ -56,6 +56,7 @@ inline void OpenSpielState::check_variant(int variant)
 void OpenSpielState::set(const std::string &fenStr, bool isChess960, int variant)
 {
     check_variant(variant);
+    std::cout << currentVariant << StateConstantsOpenSpiel::variant_to_string(currentVariant) << std::endl;
     spielState = spielGame->NewInitialState(fenStr);
 }
 
