@@ -300,7 +300,10 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/flags/*.h"
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/flags/internal/*.cc"
         "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/flags/internal/*.h"
-        
+        "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/profiling/*.cc"
+        "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/profiling/*.h"
+        "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/profiling/internal/*.cc"
+        "3rdparty/open_spiel/open_spiel/abseil-cpp/absl/profiling/internal/*.h"
         )
 
     if(MODE_OPEN_SPIEL)
