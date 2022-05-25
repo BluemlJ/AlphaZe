@@ -253,6 +253,7 @@ if (MODE_OPEN_SPIEL OR MODE_STRATEGO)
       spiel_utils.h
       tensor_game.cc
       tensor_game.h
+      utils/usage_logging.h
     )
 
     file(GLOB open_spiel_abseil_files
