@@ -135,9 +135,8 @@ void CrazyAra::uci_loop(int argc, char *argv[])
         else if (token == "arena")      arena(is);
         // Test if the new modes are also usable for chess and others
 
-        else if (token == "mctsmatch")   mctsarena(is, "", "");
-        else if (token == "mctstournament")   mctstournament(is);
-        else if (token == "tournament")   evaltournament(is);
+        else if (token == "match")   multimodel_arena(is, "", "", true);
+        else if (token == "tournament")   roundrobin(is);
 #endif   
         else
             cout << "Unknown command: " << cmd << endl;
