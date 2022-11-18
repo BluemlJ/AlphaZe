@@ -1,3 +1,5 @@
+:warning: **_NOTE:_**  AlphaZe** is now part of the official [CrazyAra framework](https://github.com/QueensGambit/CrazyAra). :warning:
+
 # AlphaZe**
 
 AlphaZe** is an adaptation of [AlphaZero](https://arxiv.org/abs/1712.01815) and combines is with our own version of the so-called [Perfect Information Monte-Carlo](https://arxiv.org/abs/1106.0669) algorithm to deal with imperfect information games, such as DarkHex or Stratego. 
